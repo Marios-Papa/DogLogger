@@ -1,0 +1,555 @@
+ <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dog Inventory</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+      background-color: #f9f9f9;
+    }
+    form {
+      margin-bottom: 20px;
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      display: inline-block;
+      width: 90%;
+      max-width: 600px;
+    }
+    input, button, select {
+      margin: 5px;
+      padding: 10px;
+      width: calc(100% - 22px); /* Adjusted for padding and margin */
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #28a745;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    button:hover {
+      background-color: #218838;
+    }
+    table {
+      margin: 20px auto;
+      border-collapse: collapse;
+      width: 90%;
+      max-width: 1000px;
+      background-color: white;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 12px 15px;
+      text-align: center;
+      vertical-align: middle;
+    }
+    th {
+      background-color: #f4f4f4;
+      font-weight: bold;
+    }
+    tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+    tr:hover {
+      background-color: #f1f1f1;
+    }
+    img {
+      max-width: 100px;
+      height: auto;
+      border-radius: 5px;
+    }
+    .nav-buttons a {
+      display: inline-block;
+      margin: 10px 10px;
+      padding: 10px 20px;
+      background-color: #007bff;
+      color: white;
+      text-decoration: none;
+      border-radius: 5px;
+      transition: background-color 0.3s ease;
+    }
+    .nav-buttons a:hover {
+      background-color: #0056b3;
+    }
+    .action-buttons button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      padding: 5px 10px;
+      cursor: pointer;
+      margin: 0 2px;
+      transition: background-color 0.3s ease;
+    }
+    .action-buttons button:hover {
+      background-color: #0056b3;
+    }
+    .action-buttons .save-btn {
+      background-color: #28a745;
+    }
+    .action-buttons .save-btn:hover {
+      background-color: #218838;
+    }
+    .action-buttons .cancel-btn {
+      background-color: #dc3545;
+    }
+    .action-buttons .cancel-btn:hover {
+      background-color: #c82333;
+    }
+  </style>
+</head>
+<body>
+  <h1>Dog Inventory</h1>
+  
+  <form id="dog-form">
+    <input type="text" id="name" placeholder="Dog Name" required />
+    <select id="breed" required>
+      <option value="">Select Breed</option>
+    </select>
+    <input type="date" id="dateOfBirth" placeholder="Date of Birth" required />
+    <input type="number" id="weight" placeholder="Weight (kg)" required />
+    <input type="number" id="height" placeholder="Height (cm)" required />
+    <button type="submit">Add Dog</button>
+  </form>
+  
+  <h2>Dog List</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Breed</th>
+        <th>Date of Birth</th>
+        <th>Age</th>
+        <th>Weight (kg)</th>
+        <th>Height (cm)</th>
+        <th>Image</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="dog-list"></tbody>
+  </table>
+  
+  <div class="nav-buttons">
+    <a href="/">Back to Home</a>
+  </div>
+
+  <script>
+    const dogForm = document.getElementById('dog-form');
+    const dogList = document.getElementById('dog-list');
+    const breedSelect = document.getElementById('breed');
+
+    /**
+     * Calculates the age based on the date of birth.
+     * @param {string} dob - The date of birth in YYYY-MM-DD format.
+     * @returns {string} - The age in years and months.
+     */
+    function calculateAge(dob) {
+      const birthDate = new Date(dob);
+      const today = new Date();
+      let years = today.getFullYear() - birthDate.getFullYear();
+      let months = today.getMonth() - birthDate.getMonth();
+
+      if (months < 0) {
+        years--;
+        months += 12;
+      }
+
+      // Calculate the day difference to adjust months if necessary
+      const dayDiff = today.getDate() - birthDate.getDate();
+      if (dayDiff < 0) {
+        months--;
+        if (months < 0) {
+          years--;
+          months += 12;
+        }
+      }
+
+      // Ensure non-negative values
+      years = Math.max(years, 0);
+      months = Math.max(months, 0);
+
+      return `${years} year(s), ${months} month(s)`;
+    }
+
+    /**
+     * Fetches breed list from Dog API and populates the dropdown.
+     */
+    async function fetchBreeds() {
+      try {
+        const response = await fetch('https://dog.ceo/api/breeds/list/all');
+        if (!response.ok) {
+          throw new Error('Failed to fetch breed list');
+        }
+        const data = await response.json();
+        const breeds = data.message; // Object with breed names as keys
+
+        // Populate the select element
+        for (const breed in breeds) {
+          // Only top-level breeds, ignoring sub-breeds here for simplicity
+          const option = document.createElement('option');
+          option.value = breed;
+          option.textContent = breed.charAt(0).toUpperCase() + breed.slice(1);
+          breedSelect.appendChild(option);
+        }
+      } catch (error) {
+        alert(error.message);
+      }
+    }
+
+    /**
+     * Fetches existing dogs from the server and renders them in the table.
+     */
+    async function fetchDogs() {
+      try {
+        const response = await fetch('/dogs', {
+          method: 'GET',
+          credentials: 'include', 
+        });
+
+        if (response.status === 401) {
+          alert('Authentication required. Please login.');
+          window.location.href = '/login';
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch dogs');
+        }
+
+        const dogs = await response.json();
+        dogList.innerHTML = '';
+
+        dogs.forEach((dog) => {
+          const age = calculateAge(dog.dateOfBirth);
+          const formattedDOB = new Date(dog.dateOfBirth).toLocaleDateString();
+
+          const row = document.createElement('tr');
+          row.setAttribute('data-id', dog.id); 
+          row.innerHTML = `
+            <td>${dog.name}</td>
+            <td>${dog.breed}</td>
+            <td>${formattedDOB}</td>
+            <td>${age}</td>
+            <td>${dog.weight}</td>
+            <td>${dog.height}</td>
+            <td><img src="${dog.imageUrl}" alt="${dog.name} Image" /></td>
+            <td class="action-buttons">
+              <button class="update-btn">Update</button>
+              <button class="delete-btn">Delete</button>
+            </td>
+          `;
+          dogList.appendChild(row);
+        });
+
+        // Attach event listeners to Update and Delete buttons
+        attachActionButtons();
+      } catch (error) {
+        console.error('Error fetching dogs:', error);
+        alert(error.message);
+      }
+    }
+
+    /**
+     * Attaches event listeners to Update and Delete buttons.
+     */
+    function attachActionButtons() {
+      // Update buttons
+      const updateButtons = document.querySelectorAll('.update-btn');
+      updateButtons.forEach(button => {
+        button.addEventListener('click', handleUpdate);
+      });
+
+      // Delete buttons
+      const deleteButtons = document.querySelectorAll('.delete-btn');
+      deleteButtons.forEach(button => {
+        button.addEventListener('click', handleDelete);
+      });
+    }
+
+    /**
+     * Handles the Update button click event.
+     * @param {Event} e - The click event.
+     */
+    function handleUpdate(e) {
+      const row = e.target.closest('tr');
+      const dogId = row.getAttribute('data-id');
+
+      // Prevent multiple edit rows
+      if (document.querySelector('.editing')) {
+        alert('Please save or cancel the current edit before editing another dog.');
+        return;
+      }
+
+      row.classList.add('editing');
+
+      // Get current values
+      const name = row.children[0].textContent;
+      const breed = row.children[1].textContent;
+      const dob = row.children[2].textContent;
+      const weight = row.children[4].textContent;
+      const height = row.children[5].textContent;
+
+      // Replace cells with input fields
+      row.children[0].innerHTML = `<input type="text" value="${name}" />`;
+      row.children[1].innerHTML = `
+        <select>
+          <option value="">Select Breed</option>
+        </select>
+      `;
+      // Populate breed dropdown
+      populateBreedOptions(row.children[1].querySelector('select'), breed);
+
+      row.children[2].innerHTML = `<input type="date" value="${formatDateForInput(dob)}" />`;
+      row.children[4].innerHTML = `<input type="number" value="${weight}" />`;
+      row.children[5].innerHTML = `<input type="number" value="${height}" />`;
+
+      // Change Update button to Save and Cancel
+      const actionCell = row.querySelector('.action-buttons');
+      actionCell.innerHTML = `
+        <button class="save-btn">Save</button>
+        <button class="cancel-btn">Cancel</button>
+      `;
+
+      // Attach event listeners to Save and Cancel buttons
+      const saveBtn = actionCell.querySelector('.save-btn');
+      const cancelBtn = actionCell.querySelector('.cancel-btn');
+
+      saveBtn.addEventListener('click', () => handleSave(row, dogId));
+      cancelBtn.addEventListener('click', () => handleCancel(row, { name, breed, dob, weight, height }));
+    }
+
+    /**
+     * Populates the breed select element with options and sets the selected breed.
+     * @param {HTMLSelectElement} selectElement - The select element to populate.
+     * @param {string} selectedBreed - The breed to set as selected.
+     */
+    async function populateBreedOptions(selectElement, selectedBreed) {
+      try {
+        const response = await fetch('https://dog.ceo/api/breeds/list/all');
+        if (!response.ok) {
+          throw new Error('Failed to fetch breed list');
+        }
+        const data = await response.json();
+        const breeds = data.message;
+
+        // Populate breeds
+        for (const breed in breeds) {
+          const option = document.createElement('option');
+          option.value = breed;
+          option.textContent = breed.charAt(0).toUpperCase() + breed.slice(1);
+          if (breed === selectedBreed.toLowerCase()) {
+            option.selected = true;
+          }
+          selectElement.appendChild(option);
+        }
+      } catch (error) {
+        alert(error.message);
+      }
+    }
+
+    /**
+     * Formats a date string (MM/DD/YYYY) to YYYY-MM-DD for input value.
+     * @param {string} dateStr - The date string in MM/DD/YYYY format.
+     * @returns {string} - The formatted date string in YYYY-MM-DD format.
+     */
+    function formatDateForInput(dateStr) {
+      const date = new Date(dateStr);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    /**
+     * Handles the Save button click event.
+     * @param {HTMLTableRowElement} row - The table row being edited.
+     * @param {string} dogId - The ID of the dog being updated.
+     */
+    async function handleSave(row, dogId) {
+      // Get updated values from input fields
+      const name = row.children[0].querySelector('input').value.trim();
+      const breed = row.children[1].querySelector('select').value;
+      const dateOfBirth = row.children[2].querySelector('input').value;
+      const weight = parseFloat(row.children[4].querySelector('input').value);
+      const height = parseFloat(row.children[5].querySelector('input').value);
+
+      // Basic validation
+      if (!name || !breed || !dateOfBirth || isNaN(weight) || isNaN(height)) {
+        alert('Please fill in all fields correctly.');
+        return;
+      }
+
+      const updatedDog = { name, breed, dateOfBirth, weight, height };
+
+      try {
+        const response = await fetch(`/dogs/${dogId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updatedDog),
+          credentials: 'include', // Include cookies for authentication
+        });
+
+        if (response.status === 401) {
+          alert('Authentication required. Please login.');
+          window.location.href = '/login';
+          return;
+        }
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to update dog');
+        }
+
+        // Fetch updated dogs to refresh the table
+        fetchDogs();
+      } catch (error) {
+        console.error('Error updating dog:', error);
+        alert(error.message);
+      }
+    }
+
+    /**
+     * Handles the Cancel button click event.
+     * @param {HTMLTableRowElement} row - The table row being edited.
+     * @param {Object} originalData - The original data before editing.
+     */
+    function handleCancel(row, originalData) {
+      row.classList.remove('editing');
+
+      // Restore original values
+      row.children[0].textContent = originalData.name;
+      row.children[1].textContent = originalData.breed;
+      row.children[2].textContent = new Date(originalData.dob).toLocaleDateString();
+      row.children[4].textContent = originalData.weight;
+      row.children[5].textContent = originalData.height;
+
+      // Restore action buttons
+      const actionCell = row.querySelector('.action-buttons');
+      actionCell.innerHTML = `
+        <button class="update-btn">Update</button>
+        <button class="delete-btn">Delete</button>
+      `;
+
+      // Re-attach event listeners to Update and Delete buttons
+      const updateBtn = actionCell.querySelector('.update-btn');
+      const deleteBtn = actionCell.querySelector('.delete-btn');
+
+      updateBtn.addEventListener('click', handleUpdate);
+      deleteBtn.addEventListener('click', handleDelete);
+    }
+
+    /**
+     * Adds a new dog by sending a POST request to the server.
+     * @param {Event} e - The form submission event.
+     */
+    dogForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const dogData = {
+        name: document.getElementById('name').value.trim(),
+        breed: breedSelect.value,
+        dateOfBirth: document.getElementById('dateOfBirth').value,
+        weight: parseFloat(document.getElementById('weight').value),
+        height: parseFloat(document.getElementById('height').value),
+      };
+
+      // Basic validation
+      if (!dogData.name || !dogData.breed || !dogData.dateOfBirth || isNaN(dogData.weight) || isNaN(dogData.height)) {
+        alert('Please fill in all fields correctly.');
+        return;
+      }
+
+      try {
+        const response = await fetch('/dogs', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(dogData),
+          credentials: 'include', // Include cookies for authentication
+        });
+
+        if (response.status === 401) {
+          alert('Authentication required. Please login.');
+          window.location.href = '/login';
+          return;
+        }
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to add dog');
+        }
+
+        fetchDogs(); // Refresh the list after adding a dog
+        dogForm.reset(); // Clear the form fields
+        breedSelect.value = ''; // Reset the breed dropdown
+      } catch (error) {
+        console.error('Error adding dog:', error);
+        alert(error.message);
+      }
+    });
+
+    /**
+     * Handles the Delete button click event.
+     * @param {Event} e - The click event.
+     */
+    function handleDelete(e) {
+      const row = e.target.closest('tr');
+      const dogId = row.getAttribute('data-id');
+
+      if (!confirm('Are you sure you want to delete this dog?')) {
+        return;
+      }
+
+      // Proceed with deletion
+      deleteDog(dogId);
+    }
+
+    /**
+     * Deletes a dog by sending a DELETE request to the server.
+     * @param {string} dogId - The ID of the dog to delete.
+     */
+    async function deleteDog(dogId) {
+      try {
+        const response = await fetch(`/dogs/${dogId}`, {
+          method: 'DELETE',
+          credentials: 'include', // Include cookies for authentication
+        });
+
+        if (response.status === 401) {
+          alert('Authentication required. Please login.');
+          window.location.href = '/login';
+          return;
+        }
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to delete dog');
+        }
+
+        fetchDogs(); // Refresh the list after deletion
+      } catch (error) {
+        console.error('Error deleting dog:', error);
+        alert(error.message);
+      }
+    }
+
+    // Initialize the page by fetching breeds and dogs
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchBreeds();
+      fetchDogs();
+    });
+  </script>
+</body>
+</html>
